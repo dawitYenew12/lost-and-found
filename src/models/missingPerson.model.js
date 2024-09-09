@@ -52,12 +52,12 @@ const clothingSchema = new Schema({
 
 const missingPersonSchema = new Schema({
   postedBy: {
-    type: string,
+    type: String,
     required: true,
     ref: "User",
   },
   dateReported: { type: Date, default: Date.now },
-  image: { type: Schema.Types.ObjectId, required: true, ref: "Image" },
+  image: { type: Schema.Types.ObjectId, ref: "Image" },
   status: { type: String, enum: ["missing", "pending", "found"], default: "missing" },
   gender: {
     type: String,
@@ -95,11 +95,10 @@ const missingPersonSchema = new Schema({
   },
   inputHash: {
     type: String,
-    required: true,
     unique: true,
   },
 });
 
-export const MissingPerson = model("MissingPerson", missingPersonSchema);
+export const MissingIndividual = model("MissingIndividual", missingPersonSchema);
 
-export default MissingPerson;
+export default MissingIndividual;
