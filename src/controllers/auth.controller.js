@@ -16,7 +16,7 @@ export const register = catchAsync(async (req, res) => {
 
 export const login = catchAsync(async (req, res) => {
   let { email, password } = req.body;
-  const user = await loginUser(email, password);
+  const user = await loginUser(email, password, req.connection.remoteAddress);
   const tokens = await generateAuthTokens(user.id);
   res.status(httpStatus.OK).json({ user, tokens });
 });
