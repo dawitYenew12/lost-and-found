@@ -32,5 +32,7 @@ export const errorHandler = (err, req, res, next) => {
         ...(config.env === 'development' && { stack: err.stack }),
     }
 
+    logger.error(`Error Response: ${JSON.stringify(response)}`);
+
     res.status(statusCode).json(response);
 }

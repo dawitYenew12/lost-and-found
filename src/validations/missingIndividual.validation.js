@@ -38,10 +38,23 @@ const clothingSchema = Joi.object({
   }).required(),
 });
 
+const descriptionSchema = Joi.object({
+  eyeDescription: Joi.string().required(),
+  noseDescription: Joi.string().required(),
+  hairDescription: Joi.string().required(),
+  lastSeenAddressDes: Joi.string().required(),
+})
+
+const nameSchema = Joi.object({
+  firstName: Joi.string().required(),
+  middleName: Joi.string().required(),
+  lastName: Joi.string().required(),
+})
+
 export const createMissingIndividualSchema = Joi.object({
     postedBy: Joi.string().required(),
     dateReported: Joi.date().default(Date.now),
-    image: Joi.string().required(), // Assuming the image is referenced by ObjectId (string)
+    name: nameSchema.required(),
     status: Joi.string()
       .valid("missing", "pending", "found")
       .default("missing"),
@@ -53,6 +66,7 @@ export const createMissingIndividualSchema = Joi.object({
       .valid("fair", "black", "white", "tseyim", "light")
       .required(),
     clothing: clothingSchema.required(), // Embedding the clothing schema
+    description: descriptionSchema.optional(),
     body_size: Joi.string().valid(
       "thin",
       "average",
@@ -67,7 +81,6 @@ export const createMissingIndividualSchema = Joi.object({
       "medium"
     ),
     timeSinceDisappearance: Joi.number(),
-    inputHash: Joi.string().required(), // Assuming it's a hash, adjust regex if specific format is needed
   });
   
   export default createMissingIndividualSchema;

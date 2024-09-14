@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import toJson from '@meanie/mongoose-to-json';
 const { Schema, model } = mongoose;
 
 const clothingSchema = new Schema({
@@ -49,6 +50,33 @@ const clothingSchema = new Schema({
     _id: false,
   });
 
+const nameSchema = new Schema({
+  firstName: {
+    type: String,
+  },
+  middleName: {
+    type: String,
+  },
+  lastName: { 
+    type: String,
+  },
+  _id: false,
+});
+
+const descriptionSchema = new Schema({
+  eyeDescription: {
+    type: String,
+  },
+  noseDescription: {
+    type: String,
+  },
+  hairDescription: {
+    type: String,
+  },
+  lastSeenAddressDes: {
+    type: String,
+  },
+});
 
 const missingPersonSchema = new Schema({
   postedBy: {
@@ -57,6 +85,7 @@ const missingPersonSchema = new Schema({
     ref: "User",
   },
   dateReported: { type: Date, default: Date.now },
+  name: nameSchema,
   image: { type: Schema.Types.ObjectId, ref: "Image" },
   status: { type: String, enum: ["missing", "pending", "found"], default: "missing" },
   gender: {
@@ -74,6 +103,7 @@ const missingPersonSchema = new Schema({
     required: true,
   },
   clothing: clothingSchema,
+  description: descriptionSchema,
   body_size: {
     type: String,
     enum: [
@@ -95,10 +125,11 @@ const missingPersonSchema = new Schema({
   },
   inputHash: {
     type: String,
-    unique: true,
+    required: true,
   },
 });
 
+missingPersonSchema.plugin(toJson);
 export const MissingIndividual = model("MissingIndividual", missingPersonSchema);
 
 export default MissingIndividual;
