@@ -10,12 +10,13 @@ export const createMissingIndividual = async (missingIndividualBody) => {
       const inputHash = calculateHash(missingIndividualBody);
       const isMissingCaseExist = await MissingIndividual.findOne({ inputHash });
       let descriptionSimilariyScore;
+      let newCase;
       if (isMissingCaseExist) {
             throw new ApiError(httpStatus.BAD_REQUEST, 'Case already exists');
       } else {
-           const newCase = await MissingIndividual.create({...missingIndividualBody, inputHash});
-           logger.info('Missing case created successfully');
-           descriptionSimilariyScore = await descriptionService.handleDescriptionSimilarity(newCase);
+            newCase = await MissingIndividual.create({ ...missingIndividualBody, inputHash });
+            logger.info('Missing case created successfully');
+            descriptionSimilariyScore = await descriptionService.handleDescriptionSimilarity(newCase);
       }
 
 
@@ -52,8 +53,7 @@ export const createMissingIndividual = async (missingIndividualBody) => {
                   body_size,
             };
       }
-
-      await compareWithExistingCases(timeSinceDisappearance, newReq, descriptionSimilariyScore);
+      await compareWithExistingCases(timeSinceDisappearance, newReq, newCase, descriptionSimilariyScore);
 }
 
 const missingIndividualService = { createMissingIndividual };

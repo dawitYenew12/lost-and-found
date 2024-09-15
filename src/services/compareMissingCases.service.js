@@ -3,6 +3,7 @@ import MissingIndividual from '../models/missingPerson.model.js';
 import ApiError from '../utils/ApiError.js';
 import { logger } from '../utils/logger.js';
 import MatchingStatus from '../models/matchingStatus.model.js';
+import mongoose from 'mongoose';
 
 const calculateAgeSimilarity = (value, existingCaseAge) => {
     const ageRanges = {
@@ -40,12 +41,10 @@ const calculateClothingSimilarity = (existingCase, key, value) => {
 }
 
 const calculateSimilarityScore = async (criteria, existingCase, descriptionSimilariyScore, newCase) => {
-    logger.info(JSON.stringify(newCase))
     let matchingStatus = {};
     let aggregateSimilarity = 0;
     let fieldCount = 0;
     let highSimilarityFieldCount = 0;
-    logger.info(`Comparing with case ${existingCase.id}`);
     for (const [key, value] of Object.entries(criteria)) {
         fieldCount++;
         let matchScore = 0;
@@ -57,10 +56,11 @@ const calculateSimilarityScore = async (criteria, existingCase, descriptionSimil
             matchingStatus[nameType] = (existingCase.name[nameType]).toUpperCase() === value.toUpperCase() ? 100 : 0;
             matchScore = matchingStatus[nameType];
         } else if (key.startsWith('clothing')) {
-            let simplifiedKey = key.replace("clothing.", "");
-            simplifiedKey = simplifiedKey.charAt(0).toUpperCase() + simplifiedKey.slice(1);
-            matchingStatus[simplifiedKey] = calculateClothingSimilarity(existingCase, key, value);
-            matchScore = matchingStatus[simplifiedKey];
+            const [_, clothingType, clothingAttribute] = key.split(".");
+            const attribute = clothingAttribute.charAt(0).toUpperCase() + clothingAttribute.slice(1);
+            const clothing = `${clothingType}${attribute}`;
+            matchingStatus[clothing] = calculateClothingSimilarity(existingCase, key, value);
+            matchScore = matchingStatus[clothing];
         } else {
             matchingStatus[key] = existingCase[key] === value ? 100 : 0;
             matchScore = matchingStatus[key];
@@ -85,10 +85,10 @@ const calculateSimilarityScore = async (criteria, existingCase, descriptionSimil
     if (matchingStatus.aggregateSimilarity >= 70) {
         await MatchingStatus.create({
             user_id: newCase.postedBy,
-            newCaseId: descriptionSimilariyScore._id,
+            newCaseId: descriptionSimilariyScore.caseId,
             existingCaseId: existingCase.id,
             matchingStatus,
-          });
+        });
     }
 }
 
@@ -114,24 +114,40 @@ const buildCriteria = (newCase, timeSinceDisappearance) => {
         criteria["clothing.upper.clothColor"] = newCase.clothing.upper.clothColor;
         criteria["clothing.lower.clothType"] = newCase.clothing.lower.clothType;
         criteria["clothing.lower.clothColor"] = newCase.clothing.lower.clothColor;
+    } else {
+        criteria["lastSeenLocation"] = newCase.lastSeenLocation;
+        criteria["medicalInformation"] = newCase.medicalInformation;
+        criteria["circumstanceOfDisappearance"] = newCase.circumstanceOfDisappearance;
     }
+
 
     return criteria;
 };
 
 
-const getExistingCases = async () => {
-    return await MissingIndividual.find({ timeSinceDisappearance: { $gt: 2 } });
+const getExistingCases = async (timeSinceDisappearance, newCaseId) => {
+    const queryCondition = timeSinceDisappearance > 2
+        ? {
+            timeSinceDisappearance: { $gt: 2 },
+            _id: { $ne: newCaseId } 
+        }
+        : {
+            timeSinceDisappearance: { $lte: 2 },
+            _id: { $ne: newCaseId } 
+        };
+    return await MissingIndividual.find(queryCondition);
 }
 
-export const compareWithExistingCases = async (timeSinceDisappearance, newCase, descriptionSimilariyScore) => {
-    const criteria = buildCriteria(newCase, timeSinceDisappearance);
-    const existingCases = await getExistingCases();
-    if (existingCases.length <= 1) {
-        return new ApiError(httpStatus.NO_CONTENT, 'Nothing to compare with');
+export const compareWithExistingCases = async (timeSinceDisappearance, newReq, newCase, descriptionSimilariyScore) => {
+    const criteria = buildCriteria(newReq, timeSinceDisappearance);
+    const existingCases = await getExistingCases(timeSinceDisappearance, newCase.id);
+    if (existingCases.length === 0) {
+        logger.info('No existing cases found');
+        return new ApiError(httpStatus.NO_CONTENT, 'No existing cases found');
     }
-    existingCases.map((existingCase) => calculateSimilarityScore(criteria, existingCase, descriptionSimilariyScore, newCase));
-    logger.info('Comparison completed successfully');
+    existingCases.forEach((existingCase) => {
+        calculateSimilarityScore(criteria, existingCase, descriptionSimilariyScore, newReq);
+    });
     return existingCases;
 };
 

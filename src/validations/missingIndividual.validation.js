@@ -65,7 +65,7 @@ export const createMissingIndividualSchema = Joi.object({
     skin_color: Joi.string()
       .valid("fair", "black", "white", "tseyim", "light")
       .required(),
-    clothing: clothingSchema.required(), // Embedding the clothing schema
+    clothing: clothingSchema.optional(), // Embedding the clothing schema
     description: descriptionSchema.optional(),
     body_size: Joi.string().valid(
       "thin",
@@ -81,6 +81,9 @@ export const createMissingIndividualSchema = Joi.object({
       "medium"
     ),
     timeSinceDisappearance: Joi.number(),
+    lastSeenLocation: Joi.string().optional(),
+    medicalInformation: Joi.string().optional(),
+    circumstanceOfDisappearance: Joi.string().optional(),
   });
   
   export default createMissingIndividualSchema;

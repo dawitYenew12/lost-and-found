@@ -31,7 +31,6 @@ export const handleDescriptionSimilarity = async (newCase) => {
         const newCaseEmbedding = await generateEmbedding(description);
         const embeddingArray = newCaseEmbedding;
         const existingEmbeddings = await DescriptionEmbedding.find();
-
         let similarityArray = [];
         if (existingEmbeddings.length === 0) {
             await DescriptionEmbedding.create({ caseId: newCase.id, embedding: embeddingArray, similarity: similarityArray });
@@ -39,12 +38,20 @@ export const handleDescriptionSimilarity = async (newCase) => {
             return;
         }
 
+        const bulkOperations = [];
         for (const existingEmbedding of existingEmbeddings) {
-            const similarityScore = calculateCosineSimilarity(embeddingArray, existingEmbedding.embedding);
+            const score = calculateCosineSimilarity(embeddingArray, existingEmbedding.embedding);
+            const similarityScore = parseFloat((score * 100).toFixed(2));
             existingEmbedding.similarity.push({ caseId: newCase.id, similarityScore });
-            await existingEmbedding.save(); 
             similarityArray.push({ caseId: existingEmbedding.caseId, similarityScore });
+            bulkOperations.push({
+                updateOne: {
+                    filter: { _id: existingEmbedding._id },
+                    update: { $set: { similarity: existingEmbedding.similarity } }
+                }
+            }); 
         }
+        await DescriptionEmbedding.bulkWrite(bulkOperations);
         const newEmbedding = await DescriptionEmbedding.create({ caseId: newCase.id, embedding: embeddingArray, similarity: similarityArray });
         logger.info('embedding sotered successfully');
         return newEmbedding;

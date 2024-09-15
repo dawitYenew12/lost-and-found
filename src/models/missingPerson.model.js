@@ -123,6 +123,18 @@ const missingPersonSchema = new Schema({
   timeSinceDisappearance: {
     type: Number
   },
+  lastSeenLocation: {
+    type: String,
+    required: false,
+  },
+  medicalInformation: {
+    type: String,
+    required: false,
+  },
+  circumstanceOfDisappearance: {
+    type: String,
+    required: false,
+  },
   inputHash: {
     type: String,
     required: true,
@@ -133,3 +145,4 @@ missingPersonSchema.plugin(toJson);
 export const MissingIndividual = model("MissingIndividual", missingPersonSchema);
 
 export default MissingIndividual;
+
