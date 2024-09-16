@@ -8,7 +8,10 @@ export const createMissingIndividual = catchAsync(async (req, res) => {
     res.status(httpStatus.CREATED).json({ success: true, message: "missing individual case created successfully" });
 });
 
-export const compareMissingIndividual = catchAsync(async (req, res) => {});
+export const compareMissingIndividual = catchAsync(async (req, res) => {
+    const matchingStatus = await missingIndividualService.compareMissingIndividual(req.body);
+    res.status(httpStatus.OK).json({ success: true, message: 'compared successfully', matchingStatus})
+});
 export const getMissingCases = catchAsync(async (req, res) => {});
 
 const missingIndvController = {

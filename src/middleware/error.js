@@ -20,19 +20,17 @@ export const errorConverter = (err, req, res, next) => {
 
 export const errorHandler = (err, req, res, next) => {
     let { statusCode, message } = err;
+    const response = {
+      error: true,
+      code: statusCode,
+      message: message,
+      ...(config.env === 'development' && { stack: err.stack }),
+    }
+
     if (config.env === 'production' && !err.isOperational) {
         statusCode = httpStatus.INTERNAL_SERVER_ERROR,
         message = httpStatus[httpStatus.INTERNAL_SERVER_ERROR];
     }
 
-    const response = {
-        error: true,
-        code: statusCode,
-        message: message,
-        ...(config.env === 'development' && { stack: err.stack }),
-    }
-
-    logger.error(`Error Response: ${JSON.stringify(response)}`);
-
-    res.status(statusCode).json(response);
+    res.status(statusCode).send(response);
 }

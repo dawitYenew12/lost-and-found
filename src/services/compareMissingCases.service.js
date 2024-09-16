@@ -3,7 +3,12 @@ import MissingIndividual from '../models/missingPerson.model.js';
 import ApiError from '../utils/ApiError.js';
 import { logger } from '../utils/logger.js';
 import MatchingStatus from '../models/matchingStatus.model.js';
-import mongoose from 'mongoose';
+
+const asyncForEach = async (array, callback) => {
+    for (let index = 0; index < array.length; index++) {
+        await callback(array[index], index, array);
+    }
+};
 
 const calculateAgeSimilarity = (value, existingCaseAge) => {
     const ageRanges = {
@@ -40,14 +45,17 @@ const calculateClothingSimilarity = (existingCase, key, value) => {
     }
 }
 
-const calculateSimilarityScore = async (criteria, existingCase, descriptionSimilariyScore, newCase) => {
+//                                     criteria, existingCase, descriptionSimilarityScore, newReq
+const calculateSimilarityScore = async (criteria, existingCase, descriptionSimilarityScore, newReq, saveToDb) => {
     let matchingStatus = {};
     let aggregateSimilarity = 0;
     let fieldCount = 0;
     let highSimilarityFieldCount = 0;
+
     for (const [key, value] of Object.entries(criteria)) {
         fieldCount++;
         let matchScore = 0;
+
         if (key === 'age') {
             matchingStatus.age = calculateAgeSimilarity(value, existingCase.age);
             matchScore = matchingStatus.age;
@@ -71,7 +79,8 @@ const calculateSimilarityScore = async (criteria, existingCase, descriptionSimil
             highSimilarityFieldCount++;
         }
     }
-    descriptionSimilariyScore.similarity.forEach((similarity) => {
+
+    descriptionSimilarityScore.similarity.forEach((similarity) => {
         if (similarity.caseId.equals(existingCase.id)) {
             matchingStatus.description = similarity.similarityScore;
             aggregateSimilarity += similarity.similarityScore;
@@ -80,74 +89,28 @@ const calculateSimilarityScore = async (criteria, existingCase, descriptionSimil
             }
         }
     });
+
     fieldCount++;
     matchingStatus.aggregateSimilarity = parseFloat((aggregateSimilarity / fieldCount).toFixed(2));
-    if (matchingStatus.aggregateSimilarity >= 70) {
+
+    if (matchingStatus.aggregateSimilarity >= 70 && saveToDb) {
         await MatchingStatus.create({
-            user_id: newCase.postedBy,
-            newCaseId: descriptionSimilariyScore.caseId,
+            user_id: newReq.postedBy,
+            newCaseId: descriptionSimilarityScore.caseId,
             existingCaseId: existingCase.id,
             matchingStatus,
         });
     }
-}
-
-const buildCriteria = (newCase, timeSinceDisappearance) => {
-    const criteria = {
-        "name.firstName": newCase.name.firstName,
-        "name.middleName": newCase.name.middleName,
-        "name.lastName": newCase.name.lastName,
-        gender: newCase.gender,
-        age: newCase.age,
-        skin_color: newCase.skin_color,
-        body_size: newCase.body_size,
-        description: {
-            eyeDescription: newCase.description.eyeDescription,
-            noseDescription: newCase.description.noseDescription,
-            hairDescription: newCase.description.hairDescription,
-            lastSeenAddressDes: newCase.description.lastSeenAddressDes
-        }
-    };
-
-    if (timeSinceDisappearance <= 2) {
-        criteria["clothing.upper.clothType"] = newCase.clothing.upper.clothType;
-        criteria["clothing.upper.clothColor"] = newCase.clothing.upper.clothColor;
-        criteria["clothing.lower.clothType"] = newCase.clothing.lower.clothType;
-        criteria["clothing.lower.clothColor"] = newCase.clothing.lower.clothColor;
-    } else {
-        criteria["lastSeenLocation"] = newCase.lastSeenLocation;
-        criteria["medicalInformation"] = newCase.medicalInformation;
-        criteria["circumstanceOfDisappearance"] = newCase.circumstanceOfDisappearance;
-    }
-
-
-    return criteria;
+    return matchingStatus;
 };
 
 
-const getExistingCases = async (timeSinceDisappearance, newCaseId) => {
-    const queryCondition = timeSinceDisappearance > 2
-        ? {
-            timeSinceDisappearance: { $gt: 2 },
-            _id: { $ne: newCaseId } 
-        }
-        : {
-            timeSinceDisappearance: { $lte: 2 },
-            _id: { $ne: newCaseId } 
-        };
-    return await MissingIndividual.find(queryCondition);
-}
-
-export const compareWithExistingCases = async (timeSinceDisappearance, newReq, newCase, descriptionSimilariyScore) => {
-    const criteria = buildCriteria(newReq, timeSinceDisappearance);
-    const existingCases = await getExistingCases(timeSinceDisappearance, newCase.id);
-    if (existingCases.length === 0) {
-        logger.info('No existing cases found');
-        return new ApiError(httpStatus.NO_CONTENT, 'No existing cases found');
-    }
-    existingCases.forEach((existingCase) => {
-        calculateSimilarityScore(criteria, existingCase, descriptionSimilariyScore, newReq);
+export const compareWithExistingCases = async (criteria, existingCases, newReq, descriptionSimilarityScore, saveToDb) => {
+    let matchingStatuses = [];
+    await asyncForEach(existingCases, async (existingCase) => {
+        const matchingStatus = await calculateSimilarityScore(criteria, existingCase, descriptionSimilarityScore, newReq, saveToDb);
+        matchingStatuses.push({ caseId: existingCase.id, matchingStatus });
     });
-    return existingCases;
+    return matchingStatuses;
 };
 

@@ -18,5 +18,6 @@ export default {
     maxFailsByIp: envVars.MAX_FAILS_BY_IP_PER_DAY,
     maxConsecutiveFailsByEmailAndIp: envVars.MAX_CONSECUTIVE_FAILS_BY_EMAIL_AND_IP,
     maxConsecutiveFailsByEmail: envVars.MAX_CONSECUTIVE_FAILS_BY_EMAIL, 
-  }
+  },
+  cosSimilarityMultiplier: envVars.COSINE_SIMILARITY_MULTIPLIER,
 };

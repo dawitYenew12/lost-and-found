@@ -1,8 +1,9 @@
-import { pipeline } from "@xenova/transformers";
-import DescriptionEmbedding from '../models/descriptionEmbedding.model.js';
-import { logger } from '../utils/logger.js';
-import ApiError from "../utils/ApiError.js";
 import httpStatus from "http-status";
+import DescriptionEmbedding from '../models/descriptionEmbedding.model.js';
+import ApiError from "../utils/ApiError.js";
+import { pipeline } from "@xenova/transformers";
+import { logger } from '../utils/logger.js';
+import config from "../config/config.js";
 
 const calculateCosineSimilarity = (embedding1, embedding2) => {
     let dotProduct = 0;
@@ -25,37 +26,52 @@ const generateEmbedding = async (description) => {
     return Array.from(output.data);
 }
 
-export const handleDescriptionSimilarity = async (newCase) => {
+const calculateDescriptionSimilarity = async (newCaseEmbedding) => {
+    const existingEmbeddings = await DescriptionEmbedding.find();
+    let similarityArray = [];
+
+    for (const existingEmbedding of existingEmbeddings) {
+        const score = calculateCosineSimilarity(newCaseEmbedding, existingEmbedding.embedding);
+        const similarityScore = parseFloat((score * config.cosSimilarityMultiplier).toFixed(2));
+        similarityArray.push({ caseId: existingEmbedding.caseId, similarityScore });
+    }
+
+    return similarityArray;
+};
+
+export const handleDescriptionSimilarity = async (newCase, saveToDb = true) => {
     try {
-        const description = `${newCase.description.eyeDescription} ${newCase.description.noseDescription} ${newCase.description.hairDescription} ${newCase.description.lastSeenAddressDes}`;
+        const description = [
+            newCase.description.eyeDescription,
+            newCase.description.noseDescription,
+            newCase.description.hairDescription,
+            newCase.description.lastSeenAddressDes
+        ].join(' ');
         const newCaseEmbedding = await generateEmbedding(description);
-        const embeddingArray = newCaseEmbedding;
-        const existingEmbeddings = await DescriptionEmbedding.find();
-        let similarityArray = [];
-        if (existingEmbeddings.length === 0) {
-            await DescriptionEmbedding.create({ caseId: newCase.id, embedding: embeddingArray, similarity: similarityArray });
-            logger.info('initial embedding sotered successfully');
-            return;
+        const similarityScores = await calculateDescriptionSimilarity(newCaseEmbedding);
+        if (!saveToDb) {
+            return {similarity: similarityScores};
         }
 
-        const bulkOperations = [];
-        for (const existingEmbedding of existingEmbeddings) {
-            const score = calculateCosineSimilarity(embeddingArray, existingEmbedding.embedding);
-            const similarityScore = parseFloat((score * 100).toFixed(2));
-            existingEmbedding.similarity.push({ caseId: newCase.id, similarityScore });
-            similarityArray.push({ caseId: existingEmbedding.caseId, similarityScore });
-            bulkOperations.push({
-                updateOne: {
-                    filter: { _id: existingEmbedding._id },
-                    update: { $set: { similarity: existingEmbedding.similarity } }
-                }
-            }); 
-        }
+        const bulkOperations = similarityScores.map((score) => ({
+            updateOne: {
+                filter: { caseId: score.caseId },
+                update: { $push: { similarity: { caseId: newCase.id, similarityScore: score.similarityScore } } },
+            },
+        }));
+
         await DescriptionEmbedding.bulkWrite(bulkOperations);
-        const newEmbedding = await DescriptionEmbedding.create({ caseId: newCase.id, embedding: embeddingArray, similarity: similarityArray });
+
+        const newEmbeddingEntry = await DescriptionEmbedding.create({
+            caseId: newCase.id,
+            embedding: newCaseEmbedding,
+            similarity: similarityScores
+        });
+
         logger.info('embedding sotered successfully');
-        return newEmbedding;
+        return newEmbeddingEntry;
     } catch (error) {
+        logger.error(error);
         throw new ApiError(httpStatus.INTERNAL_SERVER_ERROR, 'Internal server error');
     }
 }
